@@ -4,3 +4,9 @@ Thumbs.db
 *.log
 .env*
 _site/
+
+# chaves e senhas locais (nunca enviar ao GitHub)
+env.local
+*.local
+*.env
+supabase/.temp/

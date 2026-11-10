@@ -16,7 +16,8 @@
   const brl = S.brl;
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const icon = (n, cls = '') => `<svg class="ic ${cls}"><use href="#i-${n}"/></svg>`;
-  const catName = (id) => (FA.categories.find((c) => c.id === id) || {}).name || id;
+  const catName = (id) => (FA.categories.find((c) => c.id === id) || {}).name || esc(id);
+  const validCat = (id) => (FA.categories.some((c) => c.id === id) ? id : '');
   const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   const igUrl = () => `https://www.instagram.com/${encodeURIComponent(st.settings.instagram || 'floraalmaartesanal')}/`;
 
@@ -399,7 +400,8 @@
      ========================================================= */
   function viewShop(cat, params) {
     const f = {
-      cat: cat || params.get('cat') || '',
+      // só categorias conhecidas: o valor vem do endereço e vai para o HTML
+      cat: validCat(cat || params.get('cat') || ''),
       q: params.get('q') || '',
       sub: params.get('sub') || '',
       aroma: params.get('aroma') || '',
@@ -518,7 +520,12 @@
           const b = e.target.closest('button[data-f]');
           if (!b) return;
           const k = b.dataset.f;
-          if (k === 'clear') { Object.assign(f, { q: '', sub: '', aroma: '', mood: '', promo: false, stock: false, max: 0, sort: 'relevancia' }); router(); return; }
+          if (k === 'clear') {
+            // o endereço guarda os filtros: limpa ele antes de redesenhar (mantém só a categoria)
+            history.replaceState(null, '', `${location.pathname}#/loja${f.cat ? '/' + f.cat : ''}`);
+            router();
+            return;
+          }
           f[k] = f[k] === b.dataset.v ? '' : b.dataset.v;
           $$(`button[data-f="${k}"]`, root).forEach((x) => x.classList.toggle('is-on', f[k] === x.dataset.v));
           paint();
@@ -1352,7 +1359,9 @@
 
   async function router() {
     // páginas estáticas de SEO (produto/…, loja/…) já nascem numa rota
-    const raw = decodeURI(location.hash.slice(1) || (document.body.dataset.route || '#/').slice(1));
+    const rawHash = location.hash.slice(1) || (document.body.dataset.route || '#/').slice(1);
+    let raw;
+    try { raw = decodeURI(rawHash); } catch { raw = rawHash; } // endereço com % malformado não derruba a loja
     // retorno do link de confirmação de e-mail do Supabase (#access_token=… ou #error=…)
     if (/access_token=|error_description=/.test(raw)) {
       if (/error_description=/.test(raw)) toast('O link de confirmação expirou ou já foi usado. Entre com seu e-mail e senha.', 'err');
@@ -1389,13 +1398,14 @@
       setTimeout(() => document.getElementById(anchor)?.scrollIntoView({ behavior: 'smooth' }), 80);
     }
   }
-  window.addEventListener('hashchange', router);
-
   FA.ui = { esc, icon, toast, modal, closeModal, brl, router, maskPhone, reveal };
 
-  S.load().then(() => {
+  // a primeira tela espera o catálogo E o resto dos scripts (o painel vem em admin.js)
+  const domReady = new Promise((r) => (document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', r, { once: true }) : r()));
+  Promise.all([S.load(), domReady]).then(() => {
     paintChrome();
     paintCounters();
+    window.addEventListener('hashchange', router);
     router();
   });
 })();

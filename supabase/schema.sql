@@ -189,19 +189,21 @@ begin
   end if;
 end $$;
 
--- IP real do cliente (definido pela Cloudflare; o navegador não consegue falsificar)
+-- IP real do cliente (definido pela Cloudflare; o navegador não consegue falsificar).
+-- Sem IP conhecido devolve null: o limite por IP é pulado (os limites por WhatsApp
+-- continuam), em vez de juntar todo mundo num balde só e travar a loja inteira.
 create or replace function flora.client_ip()
 returns text language sql stable set search_path = '' as $$
   select coalesce(
     nullif(current_setting('request.headers', true), '')::jsonb ->> 'cf-connecting-ip',
-    nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-real-ip',
-    'local');
+    nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-real-ip');
 $$;
 
 create or replace function flora.rate_limit(p_bucket text, p_max integer, p_window interval)
 returns void language plpgsql volatile security definer set search_path = '' as $$
 declare n integer;
 begin
+  if p_bucket is null then return; end if; -- ex.: 'pedido:ip:' || null (IP desconhecido)
   if random() < 0.02 then
     delete from flora.rate_hits where at < now() - interval '2 days';
   end if;
@@ -514,6 +516,11 @@ declare
   opts  text[];
   mds   text[];
   specs jsonb;
+  -- estoque: "stock_delta" soma/subtrai sobre o valor ATUAL do banco (botões − e +);
+  -- sem "stock" no pedido, o estoque atual é mantido. Assim uma tela aberta há tempo
+  -- não desfaz as baixas das vendas que entraram nesse meio-tempo.
+  has_stock boolean := p ? 'stock';
+  delta     integer := round(flora.num(p->>'stock_delta', -100000, 100000))::integer;
 begin
   perform flora.require_admin();
   if pid !~ '^[a-z0-9]+(-[a-z0-9]+)*$' or length(pid) > 60 then
@@ -545,7 +552,8 @@ begin
   values (
     pid, left(trim(p->>'name'), 120), left(coalesce(p->>'aroma', ''), 60), p->>'cat',
     left(coalesce(p->>'sub', ''), 60), coalesce(flora.num(p->>'price', 0, 100000), 0), flora.num(p->>'old_price', 0, 100000),
-    coalesce(round(flora.num(p->>'stock', 0, 100000)), 0)::integer, opts,
+    case when delta is not null and not has_stock then greatest(0, delta)
+         else coalesce(round(flora.num(p->>'stock', 0, 100000)), 0)::integer end, opts,
     left(coalesce(nullif(trim(p->>'opt_label'), ''), 'Aroma'), 30), mds,
     left(coalesce(p->>'notes', ''), 160), left(coalesce(p->>'description', ''), 2000), specs, art,
     case when p->>'image' ~ '^https://[^[:space:]"''<>]+$' then left(p->>'image', 500) end,
@@ -554,7 +562,11 @@ begin
   )
   on conflict (id) do update set
     name = excluded.name, aroma = excluded.aroma, cat = excluded.cat, sub = excluded.sub, price = excluded.price,
-    old_price = excluded.old_price, stock = excluded.stock, options = excluded.options, opt_label = excluded.opt_label,
+    old_price = excluded.old_price,
+    stock = case when delta is not null then greatest(0, t.stock + delta)
+                 when has_stock then excluded.stock
+                 else t.stock end,
+    options = excluded.options, opt_label = excluded.opt_label,
     moods = excluded.moods, notes = excluded.notes, description = excluded.description, specs = excluded.specs,
     art = excluded.art, image = excluded.image, featured = excluded.featured, is_new = excluded.is_new,
     active = excluded.active, sort = excluded.sort, updated_at = now()

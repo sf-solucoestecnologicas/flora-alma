@@ -54,23 +54,37 @@ node tools/seo-build.js             # gera o site publicado (com as páginas de 
 - **Convites da equipe**: token aleatório de 192 bits, guardado **só como hash SHA-256**, uso único, vale 7 dias e pode ser cancelado.
 - Tudo que vem do painel é validado e limpo no servidor (códigos, cores, links de imagem, números e textos com tamanho máximo), evitando injeção de código mesmo com uma conta da equipe comprometida.
 - **Histórico de alterações** do painel (quem mudou o quê e quando), com destaque para troca da chave Pix.
+- **Estoque à prova de tela velha**: os botões − e + do painel somam sobre o estoque atual do banco, e salvar um produto sem mexer no estoque mantém o valor atual. Uma tela aberta há horas não desfaz as baixas das vendas que entraram nesse meio-tempo.
 - Fotos: só JPG, PNG e WebP (sem SVG) até 5 MB. O redimensionamento no navegador remove metadados (inclusive localização).
 
 **Site**
-- Content Security Policy: só carrega scripts, estilos, fontes e conexões de origens conhecidas.
+- Content Security Policy: só carrega estilos, fontes e conexões de origens conhecidas, e scripts externos **só dos dois arquivos exatos** usados (supabase-js e QR Code), não de um CDN inteiro.
+- Endereços (`#/loja?cat=…`, busca etc.) nunca entram no HTML sem validação ou escape.
 - **SRI** (hash SHA-384) nas bibliotecas externas (Supabase e QR Code): se o CDN for adulterado, o script não roda.
 - Proteção contra clickjacking (a loja não abre dentro de outro site), todo conteúdo dinâmico escapado e planilhas exportadas protegidas contra fórmulas maliciosas.
 - Senha da equipe com no mínimo 8 caracteres, letras e números. Login com limite de tentativas do Supabase.
 - Privacidade: política em `#/privacidade`, consentimento no checkout, "Esquecer meus dados neste aparelho" e nenhum cookie de rastreamento.
 
+## Banco de dados (Supabase)
+
+- Projeto: `enwiegzraeaqfsmlnwyv` (endereço e chave *publishable* em `js/data.js`; a chave publishable é pública por design).
+- A chave **secreta** nunca vai para o site nem para o Git: se precisar dela, guarde em `supabase/env.local` (já está no `.gitignore`).
+- **Instalar num projeto novo** (Supabase → SQL Editor, nesta ordem):
+  1. `supabase/schema.sql` (tabelas, funções e regras de segurança; pode rodar de novo sem perder dados);
+  2. `supabase/seed.sql` (catálogo inicial; não sobrescreve o que já existe);
+  3. o SQL que `node supabase/convite-inicial.js` mostra: cria o **primeiro convite** de administrador e mostra o link para criar a conta.
+- Ao trocar de projeto, troque também o endereço do projeto no CSP do `index.html` (`img-src` e `connect-src`).
+
 ## Acesso ao painel
 
 - **Entrar:** `#/atelie`, com e-mail e senha.
+- **Primeiro acesso num banco novo:** `node supabase/convite-inicial.js` (veja acima).
 - **Nova pessoa na equipe:** Configurações → *Equipe e convites* → **Gerar link de convite**. O link aparece uma vez só, funciona para uma pessoa e vale 7 dias.
-- **Confirmação de e-mail:** configuração do projeto Supabase inteiro (Authentication → Sign In / Providers → Email → *Confirm email*). Se estiver ligada, adicione `https://sf-solucoestecnologicas.github.io/flora-alma/` em Authentication → URL Configuration → *Redirect URLs*.
+- **Confirmação de e-mail** (Authentication → Sign In / Providers → Email → *Confirm email*): o servidor de e-mail padrão do Supabase só entrega para quem é da equipe do projeto no Supabase. Para convidar outras pessoas, deixe a confirmação **desligada** (o convite de uso único já protege o acesso) ou configure um SMTP próprio. Se ligar, defina `https://sf-solucoestecnologicas.github.io/flora-alma/` como *Site URL* e em *Redirect URLs* (Authentication → URL Configuration).
 
 ## Antes de divulgar: revisar
 
+- **Chave Pix e WhatsApp da loja** (painel → Configurações): começam vazios. Sem a chave, o pedido não mostra QR Code nem copia-e-cola; sem o WhatsApp, o botão "Enviar pedido no WhatsApp" não sabe para quem mandar.
 - **Endereço/retirada e horário**: estão como exemplo. O mapa só aparece com latitude e longitude.
 - **Produtos, preços, estoques, pesos, tempo de queima e composição** são demonstrativos. Ajuste tudo no painel.
 - **Itens de lembrancinha**, embalagem para presente (R$ 6), entrega (R$ 10, grátis acima de R$ 150), 5% no Pix, até 3x, cupons `BEMVINDA` e `ABRACO15`: editáveis no painel.
@@ -87,7 +101,7 @@ js/store.js             estado, Supabase, sacola, Pix (BR Code), WhatsApp
 js/app.js               vitrine: home, loja, produto, checkout, lembrancinhas, privacidade
 js/admin.js             painel do ateliê
 tools/seo-build.js      gera _site/ com páginas de SEO, sitemap e robots
-supabase/               schema (com a camada de segurança), seed e gerador do seed
+supabase/               schema (com a camada de segurança), seed, gerador do seed e convite inicial
 assets/                 logo, ícones e imagem de compartilhamento
 .github/workflows/      publicação no GitHub Pages
 ```

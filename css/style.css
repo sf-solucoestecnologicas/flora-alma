@@ -810,6 +810,9 @@ a.order:hover { transform: translateX(4px); }
 .team__link { display: flex; gap: 8px; margin: 14px 0 18px; flex-wrap: wrap; }
 .team__link .input { flex: 1; min-width: 240px; height: 40px; }
 .team__list .li small { display: inline; }
+/* e-mail comprido não empurra o botão para fora da tela: o botão desce de linha */
+.team__list .li--row { flex-wrap: wrap; }
+.team__list .li--row > span { min-width: 0; overflow-wrap: anywhere; }
 
 /* ---------- Segurança e privacidade ---------- */
 .secure a, .muted-light a, .prose a { text-decoration: underline; text-underline-offset: 3px; }
@@ -1050,8 +1053,12 @@ a.order:hover { transform: translateX(4px); }
   .kpis { grid-template-columns: 1fr 1fr; gap: 10px; }
   .adm-grid { grid-template-columns: 1fr; }
   .panel--wide { grid-column: auto; }
-  .ocard summary { grid-template-columns: 1fr auto; }
-  .ocard summary > span:nth-child(3), .ocard summary > span:nth-child(5) { display: none; }
+  /* celular: código e total em cima, nome do cliente e situação embaixo */
+  .ocard summary { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; }
+  .ocard summary > b:first-child { order: 1; }
+  .ocard summary > b:nth-child(5) { order: 2; justify-self: end; }
+  .ocard summary > .ocard__name { order: 3; font-weight: 500; color: var(--muted); }
+  .ocard summary > .status { order: 4; justify-self: end; }
   .select--sm { font-size: 16px; height: 40px; }
   .table--orders th:nth-child(2), .table--orders td:nth-child(2), .table--orders th:nth-child(5), .table--orders td:nth-child(5) { display: none; }
   /* tabelas viram cartões */
@@ -1087,6 +1094,10 @@ a.order:hover { transform: translateX(4px); }
   .rowitem--sv > .rf-check { order: 5; }
   .rowitem--sv > .rf-rm { order: 6; }
   .rf-rm { justify-self: end; }
+  /* iPhone dá zoom ao tocar em campos com letra menor que 16px */
+  .select { font-size: 16px; }
+  /* botão com texto longo quebra a linha em vez de passar da tela */
+  .forget .btn { white-space: normal; height: auto; min-height: var(--h); padding-block: 9px; line-height: 1.3; text-align: center; }
 }
 @media (max-width: 380px) {
   .adm__side nav a { font-size: 10px; letter-spacing: -.01em; }

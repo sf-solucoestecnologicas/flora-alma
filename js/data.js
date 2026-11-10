@@ -8,9 +8,10 @@
 window.FA = window.FA || {};
 
 FA.config = {
-  supabaseUrl: 'https://vsjidlibxhsxhivuzyqk.supabase.co',
-  // chave "publishable": é pública por design (as regras ficam no banco)
-  supabaseKey: 'sb_publishable_7nnphSWYCAFkgTf6uzyuTg_9vVI_Fyc',
+  supabaseUrl: 'https://enwiegzraeaqfsmlnwyv.supabase.co',
+  // chave "publishable": é pública por design (as regras ficam no banco).
+  // A chave SECRETA nunca vai no site: fica só em supabase/env.local (fora do Git).
+  supabaseKey: 'sb_publishable_CsbQmzEXIj41cnhAu6Mf-w_DgNgj9qK',
   bucket: 'flora-produtos',
 };
 

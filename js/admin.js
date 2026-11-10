@@ -266,8 +266,9 @@
         const sb = e.target.closest('[data-stock]');
         if (sb) {
           const p = products.find((x) => x.id === sb.dataset.id);
-          const next = { ...p, stock: Math.max(0, p.stock + +sb.dataset.stock) };
-          try { const r = await S.admin.call('flora_admin_upsert_product', { p: next }); Object.assign(p, r); paint(); refreshStore(); } catch (err) { toast(err.message, 'err'); }
+          // manda só a diferença: o banco soma sobre o estoque atual (que pode ter mudado com vendas)
+          const { stock, ...rest } = p;
+          try { const r = await S.admin.call('flora_admin_upsert_product', { p: { ...rest, stock_delta: +sb.dataset.stock } }); Object.assign(p, r); paint(); refreshStore(); } catch (err) { toast(err.message, 'err'); }
         }
       });
       paint();
@@ -277,6 +278,7 @@
   function productForm(p) {
     const isNew = !p;
     p = p ? JSON.parse(JSON.stringify(p)) : { id: '', name: '', aroma: '', cat: 'sabonetes', sub: '', price: 0, old_price: null, stock: 1, options: [], opt_label: 'Aroma', moods: [], notes: '', description: '', specs: [], art: { kind: 'soap', color: '#e9d8c4', accent: '#a86b4f', deco: '', bg: '#efe5d7' }, image: '', featured: false, is_new: true, active: true, sort: 100 };
+    const openStock = p.stock;
     const card = modal(`
       <h3 class="modal__title">${isNew ? 'Novo produto' : 'Editar produto'}</h3>
       <form id="pForm" class="pform" novalidate>
@@ -380,6 +382,8 @@
         active: form.elements.active.checked, featured: form.elements.featured.checked, is_new: form.elements.is_new.checked,
         sort: parseInt(v('sort'), 10) || 0, art: readArt(),
       };
+      // estoque só vai se foi mexido: senão o banco mantém o atual (com as vendas recentes)
+      if (!isNew && data.stock === openStock) delete data.stock;
       try {
         const saved = await S.admin.call('flora_admin_upsert_product', { p: data });
         const i = D.data.products.findIndex((x) => x.id === saved.id);

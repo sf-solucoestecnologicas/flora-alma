@@ -8,8 +8,11 @@ FA.store = (() => {
     set(k, v) { try { localStorage.setItem('fa_' + k, JSON.stringify(v)); } catch { /* modo privado */ } },
   };
 
+  // login do painel guardado por projeto: trocar de projeto Supabase não reaproveita sessão antiga
+  const projectRef = (() => { try { return new URL(FA.config.supabaseUrl).hostname.split('.')[0]; } catch { return 'x'; } })();
+  try { localStorage.removeItem('fa_auth'); } catch { /* sessão do projeto antigo */ }
   const sb = window.supabase
-    ? window.supabase.createClient(FA.config.supabaseUrl, FA.config.supabaseKey, { auth: { persistSession: true, storageKey: 'fa_auth' } })
+    ? window.supabase.createClient(FA.config.supabaseUrl, FA.config.supabaseKey, { auth: { persistSession: true, storageKey: 'fa_auth_' + projectRef } })
     : null;
 
   const state = {
@@ -33,7 +36,12 @@ FA.store = (() => {
     const cached = LS.get('catalog', null);
     try {
       if (!sb) throw new Error('sem supabase-js');
-      const { data, error } = await sb.rpc('flora_bootstrap');
+      let { data, error, status } = await sb.rpc('flora_bootstrap');
+      if (error && (status === 401 || status === 403 || /jwt/i.test(error.message || ''))) {
+        // login do painel vencido ou inválido: sai só neste aparelho e carrega a loja normalmente
+        await sb.auth.signOut({ scope: 'local' }).catch(() => {});
+        ({ data, error } = await sb.rpc('flora_bootstrap'));
+      }
       if (error) throw error;
       state.products = data.products || [];
       state.souvenirs = data.souvenirs || [];
