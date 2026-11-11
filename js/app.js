@@ -38,7 +38,9 @@
     t.innerHTML = `${icon(type === 'err' ? 'x' : 'check')}<span>${esc(msg)}</span>`;
     $('#toasts').appendChild(t);
     requestAnimationFrame(() => t.classList.add('is-in'));
-    setTimeout(() => { t.classList.remove('is-in'); setTimeout(() => t.remove(), 400); }, 3200);
+    // avisos longos (como os de erro) ficam mais tempo na tela para dar tempo de ler
+    const ms = Math.min(9000, Math.max(3200, String(msg).length * 70));
+    setTimeout(() => { t.classList.remove('is-in'); setTimeout(() => t.remove(), 400); }, ms);
   }
   function modal(html, cls = '') {
     const m = $('#modal');

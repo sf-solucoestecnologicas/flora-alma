@@ -352,15 +352,20 @@
     $('.pform__art', card).addEventListener('change', preview);
     form.elements.name.addEventListener('input', () => { if (isNew) form.elements.id.value = slug(form.elements.name.value); });
     $('#pFile', card).addEventListener('change', async (e) => {
-      const file = e.target.files[0];
+      const input = e.target;
+      const file = input.files[0];
       if (!file) return;
       const id = form.elements.id.value || slug(form.elements.name.value) || 'produto';
+      const save = form.querySelector('button[type="submit"]');
       $('#pPrev', card).innerHTML = '<span class="spinner spinner--dark"></span>';
+      save.disabled = true; // salvar agora gravaria o produto sem a foto que ainda está subindo
       try {
         p.image = await S.admin.upload(file, id);
         $('#pNoPhoto', card).hidden = false;
-        toast('Foto enviada');
+        toast('Foto enviada. Salve o produto para gravar.');
       } catch (err) { toast(err.message, 'err'); }
+      save.disabled = false;
+      input.value = ''; // sem isto, escolher a mesma foto de novo não faz nada
       preview();
     });
     $('#pNoPhoto', card).addEventListener('click', () => { p.image = ''; $('#pNoPhoto', card).hidden = true; preview(); });

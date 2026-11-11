@@ -841,9 +841,15 @@ values ('flora-produtos', 'flora-produtos', true, 5242880, array['image/jpeg','i
 on conflict (id) do update set public = true, file_size_limit = excluded.file_size_limit,
   allowed_mime_types = excluded.allowed_mime_types;
 
+drop policy if exists "flora equipe lista fotos" on storage.objects;
 drop policy if exists "flora equipe insere fotos" on storage.objects;
 drop policy if exists "flora equipe altera fotos" on storage.objects;
 drop policy if exists "flora equipe remove fotos" on storage.objects;
+-- A leitura abaixo é só para a equipe e é necessária: sem ela o Supabase recusa o envio com
+-- "upsert" e a remoção de fotos ("new row violates row-level security policy"). O público não
+-- precisa dela: as fotos são servidas pelo endereço público do bucket.
+create policy "flora equipe lista fotos" on storage.objects for select to authenticated
+  using (bucket_id = 'flora-produtos' and public.flora_is_admin());
 create policy "flora equipe insere fotos" on storage.objects for insert to authenticated
   with check (bucket_id = 'flora-produtos' and public.flora_is_admin());
 create policy "flora equipe altera fotos" on storage.objects for update to authenticated

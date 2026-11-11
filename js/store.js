@@ -324,9 +324,14 @@ FA.store = (() => {
     async call(fn, args) { const { data, error } = await sb.rpc(fn, args); if (error) throw new Error(error.message); return data; },
     async upload(file, id) {
       const blob = await resizeImage(file, 1200);
-      const path = `${id}/${Date.now()}.webp`;
-      const { error } = await sb.storage.from(FA.config.bucket).upload(path, blob, { contentType: 'image/webp', upsert: true });
-      if (error) throw new Error(error.message);
+      // pasta só com letras, números e hífen (o código do produto pode ter sido digitado à mão)
+      const folder = String(id || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'produto';
+      const path = `${folder}/${Date.now()}.${blob.type === 'image/webp' ? 'webp' : 'jpg'}`;
+      // O nome leva a hora do envio e nunca se repete. Por isso é um envio simples: com
+      // "upsert" o Supabase exige também permissão de leitura e de alteração, e recusa o envio
+      // se faltar alguma. Como o arquivo nunca muda, pode ficar 1 ano no cache do navegador.
+      const { error } = await sb.storage.from(FA.config.bucket).upload(path, blob, { contentType: blob.type, cacheControl: '31536000', upsert: false });
+      if (error) throw new Error(uploadError(error));
       return sb.storage.from(FA.config.bucket).getPublicUrl(path).data.publicUrl;
     },
   };
@@ -344,19 +349,44 @@ FA.store = (() => {
     return 'Não foi possível concluir. Tente novamente.';
   }
 
+  // Mensagens do serviço de arquivos também vêm em inglês
+  function uploadError(e) {
+    const m = String(e?.message || '');
+    const code = Number(e?.statusCode || e?.status || 0);
+    if (/failed to fetch|networkerror|load failed|network request/i.test(m)) return 'Sem conexão com a internet. Confira a rede e envie a foto de novo.';
+    if (/jwt|token/i.test(m) || code === 401) return 'Sua sessão expirou. Saia do painel, entre de novo e envie a foto outra vez.';
+    if (/row-level security|unauthorized|access ?denied|not authorized/i.test(m) || code === 403) return 'Esta conta não tem permissão para enviar fotos. Saia do painel e entre de novo; se continuar, fale com quem cuida do site.';
+    if (/maximum allowed size|too large|exceeded/i.test(m) || code === 413) return 'A foto ficou grande demais (o limite é 5 MB). Tente outra foto.';
+    if (/mime type|not supported/i.test(m) || code === 415) return 'Formato não aceito. Use uma foto JPG, PNG ou WebP.';
+    return 'Não foi possível enviar a foto agora. Tente de novo em instantes.';
+  }
+
+  // Reduz a foto no próprio navegador (lado maior = max) antes de enviar. Prefere WebP; onde o
+  // navegador não grava WebP (o Safari devolve PNG, várias vezes mais pesado) usa JPEG.
   function resizeImage(file, max) {
     return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const finish = (fn, v) => { URL.revokeObjectURL(url); fn(v); };
       const img = new Image();
       img.onload = () => {
+        if (!img.width || !img.height) return finish(reject, new Error('Não consegui ler essa imagem. Use uma foto JPG ou PNG.'));
         const k = Math.min(1, max / Math.max(img.width, img.height));
         const c = document.createElement('canvas');
-        c.width = Math.round(img.width * k);
-        c.height = Math.round(img.height * k);
-        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-        c.toBlob((b) => (b ? resolve(b) : reject(new Error('Falha ao processar a imagem'))), 'image/webp', 0.85);
+        c.width = Math.max(1, Math.round(img.width * k));
+        c.height = Math.max(1, Math.round(img.height * k));
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        c.toBlob((webp) => {
+          if (webp && webp.type === 'image/webp') return finish(resolve, webp);
+          // JPEG não tem transparência: pinta de branco por trás do desenho
+          ctx.globalCompositeOperation = 'destination-over';
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(0, 0, c.width, c.height);
+          c.toBlob((jpg) => (jpg && jpg.type === 'image/jpeg' ? finish(resolve, jpg) : finish(reject, new Error('Não foi possível preparar a foto. Tente outra imagem.'))), 'image/jpeg', 0.88);
+        }, 'image/webp', 0.85);
       };
-      img.onerror = () => reject(new Error('Imagem inválida'));
-      img.src = URL.createObjectURL(file);
+      img.onerror = () => finish(reject, new Error('Não consegui abrir esse arquivo como foto. Use uma imagem JPG ou PNG.'));
+      img.src = url;
     });
   }
 

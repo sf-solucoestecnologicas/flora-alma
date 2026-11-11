@@ -56,6 +56,7 @@ node tools/seo-build.js             # gera o site publicado (com as páginas de 
 - **Histórico de alterações** do painel (quem mudou o quê e quando), com destaque para troca da chave Pix.
 - **Estoque à prova de tela velha**: os botões − e + do painel somam sobre o estoque atual do banco, e salvar um produto sem mexer no estoque mantém o valor atual. Uma tela aberta há horas não desfaz as baixas das vendas que entraram nesse meio-tempo.
 - Fotos: só JPG, PNG e WebP (sem SVG) até 5 MB. O redimensionamento no navegador remove metadados (inclusive localização).
+- **Envio de fotos**: a foto é reduzida no navegador para 1200 px e enviada em WebP (ou JPEG, onde o navegador não grava WebP). Cada envio tem nome próprio (`produto/hora.webp`), então é um envio simples, sem "upsert". Só a equipe envia, lista, altera e apaga arquivos; o público só lê pelo endereço público do bucket `flora-produtos`. As quatro regras ficam em `storage.objects` (veja o fim do `schema.sql`): sem a de leitura, o Supabase recusa envio com "upsert" e remoção com `new row violates row-level security policy`.
 
 **Site**
 - Content Security Policy: só carrega estilos, fontes e conexões de origens conhecidas, e scripts externos **só dos dois arquivos exatos** usados (supabase-js e QR Code), não de um CDN inteiro.
